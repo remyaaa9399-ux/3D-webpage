@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Organic 3D Prototype Designer — Export STL</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0b0d10;
+      --panel:#0f1720;
+      --muted:#99a0ad;
+      --accent:#3a82f7;
+      --glass: rgba(255,255,255,0.03);
+      --radius:12px;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);font-family:'Inter',system-ui,Segoe UI,Roboto,Arial;}
+    /* Top bar */
+    header{
+      position:fixed;left:0;right:0;top:0;height:64px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-bottom:1px solid rgba(255,255,255,0.03);
+      display:flex;align-items:center;gap:16px;padding:10px 20px;z-index:30;
+      backdrop-filter: blur(6px);
+    }
+    header .brand{
+      display:flex;align-items:center;gap:12px;color:#fff;font-weight:600;font-size:16px;
+    }
+    header .brand .logo{
+      width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#6de1ff);
+      display:flex;align-items:center;justify-content:center;color:#012037;font-weight:700;box-shadow:0 6px 18px rgba(10,10,10,0.6);
+    }
+
+    header .controls{margin-left:auto;display:flex;gap:10px;align-items:center;}
+    header select, header button, header input[type="file"]{
+      background:var(--panel);color:#fff;border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:8px;font-size:14px;
+    }
+    header button.primary{background:var(--accent);border:none;color:#fff;font-weight:600;cursor:pointer;padding:8px 14px;}
+    header .hint{color:var(--muted);font-size:13px;margin-left:12px}
+
+    /* Left panel */
+    #panel{
+      position:fixed;left:18px;top:84px;width:300px;padding:16px;border-radius:var(--radius);
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.03);z-index:25;backdrop-filter: blur(6px);
+      box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+      color:#e6eef8;
+    }
+    .panel-section{margin-bottom:14px;}
+    .panel-section h4{margin:0 0 8px 0;font-size:13px;color:var(--muted);font-weight:600;}
+    .row{display:flex;gap:8px;align-items:center;margin:6px 0;}
+    label{font-size:13px;color:var(--muted);width:120px}
+    input[type=range]{width:100%}
+    input[type=color]{width:48px;height:32px;border-radius:6px;border:none;padding:2px}
+    .small{font-size:12px;color:var(--muted)}
+
+    /* Canvas container */
+    #canvas-wrap{position:fixed;inset:0;top:64px;overflow:hidden;}
+    canvas{display:block}
+
+    footer.info{
+      position:fixed;right:18px;bottom:18px;padding:10px 14px;border-radius:12px;background:var(--glass);border:1px solid rgba(255,255,255,0.03);
+      color:var(--muted);font-size:13px;z-index:20;
+    }
+
+    /* Buttons */
+    .btn{padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:#121416;color:#fff;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+    .muted{color:var(--muted);font-size:12px}
+    .toggle{display:inline-flex;gap:6px;align-items:center}
+
+    @media (max-width:900px){
+      #panel{left:12px;top:84px;width:260px}
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo">3D</div>
+    Organic 3D Prototype Designer
+    <div class="hint">— export 3D-printable STL</div>
+  </div>
+
+  <div class="controls">
+    <select id="shapeSelect" title="Choose primitive">
+      <option value="plane">Wave / Plane</option>
+      <option value="box">Box</option>
+      <option value="sphere">Sphere</option>
+      <option value="torus">Torus</option>
+    </select>
+
+    <button id="reset" class="btn ghost" title="Reset parameters">Reset</button>
+    <button id="saveHTML" class="btn" title="Download this page as HTML">Save as HTML</button>
+    <button id="exportBtn" class="primary" title="Export mesh as STL">Export STL</button>
+
+    <input id="upload" type="file" accept=".obj,.stl,.gltf,.glb" style="display:none" />
+    <button id="importBtn" class="btn" title="Import OBJ/GLTF">Import</button>
+  </div>
+</header>
+
+<div id="panel" aria-label="Parameters">
+  <div class="panel-section">
+    <h4>Modifiers</h4>
+
+    <div class="row">
+      <label>Noise Strength</label>
+      <input id="noise" type="range" min="0" max="1.2" step="0.01" value="0.18">
+    </div>
+
+    <div class="row">
+      <label>Bend</label>
+      <input id="bend" type="range" min="0" max="3" step="0.01" value="0.5">
+    </div>
+
+    <div class="row">
+      <label>Twist</label>
+      <input id="twist" type="range" min="0" max="6.28" step="0.01" value="0.0">
+    </div>
+
+    <div class="row">
+      <label>Resolution</label>
+      <input id="resolution" type="range" min="8" max="220" step="1" value="80">
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <h4>Sculpting</h4>
+    <div class="row">
+      <label>Brush Mode</label>
+      <select id="brushMode">
+        <option value="raise">Raise</option>
+        <option value="lower">Lower</option>
+        <option value="smooth">Smooth</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label>Brush Radius</label>
+      <input id="brushRadius" type="range" min="0.02" max="0.6" step="0.01" value="0.12">
+    </div>
+
+    <div class="row">
+      <label>Brush Strength</label>
+      <input id="brushStrength" type="range" min="0.01" max="1.0" step="0.01" value="0.25">
+    </div>
+
+    <div class="small muted">Hold left mouse and drag on the model to sculpt.</div>
+  </div>
+
+  <div class="panel-section">
+    <h4>Appearance & Model</h4>
+
+    <div class="row">
+      <label>Color</label>
+      <input id="color" type="color" value="#66bbff">
+    </div>
+
+    <div class="row">
+      <label>Double-Sided</label>
+      <input id="doubleSided" type="checkbox" checked>
+    </div>
+
+    <div class="row">
+      <label>Show Axes</label>
+      <input id="showAxes" type="checkbox" checked>
+    </div>
+
+    <div style="margin-top:8px;display:flex;gap:8px;">
+      <button id="applyBtn" class="btn">Apply</button>
+      <button id="subdivideBtn" class="btn ghost">Smooth</button>
+      <button id="resetModel" class="btn ghost">Reset Model</button>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <h4>Tips</h4>
+    <div class="small muted">
+      Resolution controls mesh density — higher = smoother, heavier STL. Use <b>Export STL</b> when satisfied.
+    </div>
+  </div>
+</div>
+
+<div id="canvas-wrap"></div>
+<footer class="info">Axes: <span style="color:#fff">X</span>/<span style="color:#fff">Y</span>/<span style="color:#fff">Z</span> — White axes show the scene base</footer>
+
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/exporters/STLExporter.js"></script>
+
+<script>
+/* ---------------------------
+   Scene + Renderer
+   --------------------------- */
+const container = document.getElementById('canvas-wrap');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x071018);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / (window.innerHeight - 64), 0.1, 1000);
+camera.position.set(2.8, 2.2, 3.6);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight - 64);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+container.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+/* ---------------------------
+   Lights
+   --------------------------- */
+const hemi = new THREE.HemisphereLight(0xffffff, 0x222831, 0.6);
+scene.add(hemi);
+const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+dir.position.set(6, 6, 3);
+dir.castShadow = true;
+scene.add(dir);
+
+/* ---------------------------
+   Axes (white) + grid base
+   --------------------------- */
+const axes = new THREE.AxesHelper(1.8);
+axes.material.depthTest = true;
+axes.material.opacity = 1;
+axes.material.transparent = false;
+// Set axes colors to white by replacing default colors:
+axes.geometry.colors = null;
+scene.add(axes);
+
+// subtle grid for base (thin white lines)
+const grid = new THREE.GridHelper(4, 20, 0xffffff, 0x1f2a33);
+grid.material.opacity = 0.09;
+grid.material.transparent = true;
+scene.add(grid);
+
+/* ---------------------------
+   State & Parameters
+   --------------------------- */
+let state = {
+  shape: 'plane',
+  noise: parseFloat(document.getElementById('noise').value),
+  bend: parseFloat(document.getElementById('bend').value),
+  twist: parseFloat(document.getElementById('twist').value),
+  resolution: parseInt(document.getElementById('resolution').value),
+  color: document.getElementById('color').value,
+  doubleSided: document.getElementById('doubleSided').checked,
+  showAxes: document.getElementById('showAxes').checked
+};
+
+let currentMesh = null;
+let baseGeometry = null; // keep original geometry for reset operations
+
+/* ---------------------------
+   Utilities: Simplex noise (fast)
+   --------------------------- */
+/* Minimal 2D Perlin-like pseudo-noise — not 3rd-party lib */
+function pseudoNoise(x, y) {
+  // a smooth hashed noise — okay for displacement variations
+  const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+  return (s - Math.floor(s)) * 2 - 1;
+}
+
+/* ---------------------------
+   Create primitives & apply modifiers
+   --------------------------- */
+function createGeometry(shape, res) {
+  res = Math.max(4, Math.floor(res));
+  let g;
+  if (shape === 'box') {
+    // box with subdivisions via parametric plane approach
+    g = new THREE.BoxGeometry(1,1,1, res, res, res);
+  } else if (shape === 'sphere') {
+    g = new THREE.SphereGeometry(0.9, res, res);
+  } else if (shape === 'torus') {
+    g = new THREE.TorusGeometry(0.6, 0.22, Math.max(8,res/2), res);
+  } else {
+    // plane/wave surface
+    g = new THREE.PlaneGeometry(2.0, 2.0, res, res);
+    g.rotateX(-Math.PI / 2);
+  }
+  return g;
+}
+
+function applyModifiers(geom) {
+  const pos = geom.attributes.position;
+  for (let i=0; i<pos.count; i++){
+    let x = pos.getX(i);
+    let y = pos.getY(i);
+    let z = pos.getZ(i);
+
+    // Noise displacement — scaled with position to give organic look
+    const noiseStrength = state.noise;
+    const n = pseudoNoise(x*2.3, z*2.3) * noiseStrength;
+
+    // Bend along X & Z (wrap-like)
+    const bend = state.bend;
+    const bendY = Math.sin(x * (1 + bend)) * 0.12 + Math.cos(z * (1 + bend)) * 0.12;
+
+    // Twist around Y axis
+    const twist = state.twist;
+    const tx = x * Math.cos(twist * 0.1) - z * Math.sin(twist * 0.1);
+    const tz = x * Math.sin(twist * 0.1) + z * Math.cos(twist * 0.1);
+
+    // Compose new position
+    pos.setXYZ(i, tx, y + n + bendY, tz);
+  }
+
+  geom.computeVertexNormals();
+}
+
+/* ---------------------------
+   Build/Refresh mesh
+   --------------------------- */
+function buildMesh() {
+  // Clear previous
+  if (currentMesh) {
+    scene.remove(currentMesh);
+    currentMesh.geometry.dispose();
+    currentMesh.material.dispose();
+    currentMesh = null;
+  }
+
+  // Create geometry
+  const geom = createGeometry(state.shape, state.resolution);
+  applyModifiers(geom);
+  baseGeometry = geom.clone(); // store for sculpt base & reset
+
+  const mat = new THREE.MeshStandardMaterial({
+    color: state.color,
+    roughness: 0.35,
+    metalness: 0.05,
+    side: state.doubleSided ? THREE.DoubleSide : THREE.FrontSide
+  });
+
+  currentMesh = new THREE.Mesh(geom, mat);
+  currentMesh.castShadow = true;
+  currentMesh.receiveShadow = true;
+  scene.add(currentMesh);
+}
+
+/* ---------------------------
+   Initial build
+   --------------------------- */
+buildMesh();
+axes.visible = state.showAxes;
+grid.visible = state.showAxes;
+
+/* ---------------------------
+   UI interactions
+   --------------------------- */
+document.getElementById('shapeSelect').addEventListener('change', (e)=>{
+  state.shape = e.target.value;
+  buildMesh();
+});
+
+['noise','bend','twist','resolution'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', (e)=>{
+    state[id] = (id === 'resolution') ? parseInt(e.target.value) : parseFloat(e.target.value);
+    // preview live for smooth sliders, but for resolution rebuild for heavier changes
+    if (id === 'resolution') buildMesh();
+    else {
+      // apply modifiers to a fresh copy of base geometry
+      const geom = baseGeometry.clone();
+      applyModifiers(geom);
+      if (currentMesh) {
+        currentMesh.geometry.dispose();
+        currentMesh.geometry = geom;
+      }
+    }
+  });
+});
+
+document.getElementById('color').addEventListener('input', (e)=>{
+  state.color = e.target.value;
+  if (currentMesh) currentMesh.material.color.set(state.color);
+});
+
+document.getElementById('doubleSided').addEventListener('change', (e)=>{
+  state.doubleSided = e.target.checked;
+  if (currentMesh) currentMesh.material.side = state.doubleSided ? THREE.DoubleSide : THREE.FrontSide;
+});
+
+document.getElementById('showAxes').addEventListener('change', (e)=>{
+  state.showAxes = e.target.checked;
+  axes.visible = grid.visible = state.showAxes;
+});
+
+document.getElementById('applyBtn').addEventListener('click', ()=>{
+  // apply current modifiers permanently (clone geometry)
+  if (!currentMesh) return;
+  currentMesh.geometry = currentMesh.geometry.clone();
+  baseGeometry = currentMesh.geometry.clone();
+});
+
+document.getElementById('resetModel').addEventListener('click', ()=>{
+  // restore from base primitive
+  buildMesh();
+});
+
+document.getElementById('reset').addEventListener('click', ()=>{
+  // reset params
+  document.getElementById('noise').value = 0.18;
+  document.getElementById('bend').value = 0.5;
+  document.getElementById('twist').value = 0.0;
+  document.getElementById('resolution').value = 80;
+  document.getElementById('color').value = '#66bbff';
+  state.noise = 0.18; state.bend = 0.5; state.twist = 0; state.resolution = 80; state.color = '#66bbff';
+  buildMesh();
+});
+
+/* ---------------------------
+   Sculpting — raycast + vertex influence
+   --------------------------- */
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let isSculpting = false;
+let lastMouseDown = false;
+
+function screenToMouse(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = - ((event.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function sculptAtPointer(event) {
+  if (!currentMesh) return;
+  screenToMouse(event);
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObject(currentMesh);
+  if (!intersects.length) return;
+  const hit = intersects[0];
+  const point = hit.point;
+  const geom = currentMesh.geometry;
+  const pos = geom.attributes.position;
+
+  const brushMode = document.getElementById('brushMode').value;
+  const radius = parseFloat(document.getElementById('brushRadius').value);
+  const strength = parseFloat(document.getElementById('brushStrength').value);
+
+  // For each vertex, if within radius from hit point, move
+  for (let i=0;i<pos.count;i++){
+    const vx = pos.getX(i), vy = pos.getY(i), vz = pos.getZ(i);
+    const d = Math.sqrt((vx - point.x)**2 + (vy - point.y)**2 + (vz - point.z)**2);
+    if (d <= radius){
+      const influence = 1 - (d / radius); // falloff
+      if (brushMode === 'raise') {
+        pos.setY(i, vy + strength * 0.06 * influence);
+      } else if (brushMode === 'lower') {
+        pos.setY(i, vy - strength * 0.06 * influence);
+      } else if (brushMode === 'smooth') {
+        // average neighboring vertices approximation: pull towards hit point height
+        const targetY = THREE.MathUtils.lerp(vy, point.y, 0.15 * influence * strength);
+        pos.setY(i, targetY);
+      }
+    }
+  }
+
+  pos.needsUpdate = true;
+  geom.computeVertexNormals();
+}
+
+/* Pointer events */
+renderer.domElement.addEventListener('pointerdown', (e)=>{
+  if (e.button !== 0) return; // left only
+  isSculpting = true;
+  lastMouseDown = true;
+  sculptAtPointer(e);
+});
+renderer.domElement.addEventListener('pointermove', (e)=>{
+  if (!isSculpting) return;
+  sculptAtPointer(e);
+});
+window.addEventListener('pointerup', (e)=>{
+  isSculpting = false;
+});
+
+/* ---------------------------
+   STL Export (binary text)
+   --------------------------- */
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  if (!currentMesh) return alert('No mesh found.');
+  const exporter = new THREE.STLExporter();
+  const result = exporter.parse(currentMesh); // ASCII STL
+  const blob = new Blob([result], {type: 'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'organic_model.stl';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+/* ---------------------------
+   Save current page as HTML
+   --------------------------- */
+document.getElementById('saveHTML').addEventListener('click', ()=>{
+  // Because everything is in this one file, offer the HTML source for download.
+  const html = `<!doctype html>\n` + document.documentElement.outerHTML;
+  const blob = new Blob([html], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const name = 'organic-designer.html';
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+/* ---------------------------
+   Import (basic stl/obj/glb not implemented here due to scope)
+   --------------------------- */
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  document.getElementById('upload').click();
+});
+document.getElementById('upload').addEventListener('change', (e)=>{
+  alert('Import currently not implemented in this demo. You can replace this with a loader (OBJLoader/GLTFLoader) to allow model import.');
+});
+
+/* ---------------------------
+   Subdivide / Smooth (basic Laplacian smoothing)
+   --------------------------- */
+document.getElementById('subdivideBtn').addEventListener('click', ()=>{
+  if (!currentMesh) return;
+  // Simple Laplacian smoothing iteration
+  const geom = currentMesh.geometry;
+  const pos = geom.attributes.position;
+  const temp = new Float32Array(pos.array.length);
+  const n = pos.count;
+  // Build adjacency via naive nearest neighbors (works for low-res; optimized versions exist)
+  const positions = [];
+  for (let i=0;i<n;i++) positions.push([pos.getX(i), pos.getY(i), pos.getZ(i)]);
+
+  for (let i=0;i<n;i++){
+    let xi=positions[i][0], yi=positions[i][1], zi=positions[i][2];
+    // average nearby vertices within small threshold
+    let cx=0, cy=0, cz=0, count=0;
+    for (let j=0;j<n;j++){
+      if (i===j) continue;
+      const dx = xi - positions[j][0], dy = yi - positions[j][1], dz = zi - positions[j][2];
+      const d2 = dx*dx+dy*dy+dz*dz;
+      if (d2 < 0.0008){ // threshold tuned for moderate resolution
+        cx += positions[j][0]; cy += positions[j][1]; cz += positions[j][2]; count++;
+      }
+    }
+    if (count>0){
+      temp[i*3]   = (xi*0.6 + (cx/count)*0.4);
+      temp[i*3+1] = (yi*0.6 + (cy/count)*0.4);
+      temp[i*3+2] = (zi*0.6 + (cz/count)*0.4);
+    } else {
+      temp[i*3] = xi; temp[i*3+1]=yi; temp[i*3+2]=zi;
+    }
+  }
+
+  for (let i=0;i<n;i++){
+    pos.setXYZ(i, temp[i*3], temp[i*3+1], temp[i*3+2]);
+  }
+  pos.needsUpdate = true;
+  geom.computeVertexNormals();
+});
+
+/* ---------------------------
+   Animation loop + resize
+   --------------------------- */
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', ()=>{
+  const w = window.innerWidth;
+  const h = window.innerHeight - 64;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+});
+</script>
+</body>
+</html>
